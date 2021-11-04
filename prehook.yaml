@@ -1,0 +1,30 @@
+#global-policy: 1.0.0
+yamlmake: '1.0'
+yamlmaketarget: 'hook'
+
+info:
+  name: consumer-gateway-prehook
+  title: consumer-gateway-prehook
+  version: consumer2.1.0.1
+
+gateways:
+  - datapower-api-gateway
+
+assembly:
+  execute:
+    - gatewayscript:
+        version: 2.0.0
+        title: gws-dhcg-init
+        requires: ./gatewayscripts/Context/prehook-src.js
+    - gatewayscript:
+        version: 2.0.0
+        title: jwt-validation
+        requires: ./gatewayscripts/Auth/validatejwt.js
+    - gatewayscript:
+        version: 2.0.0
+        title: jwt-validation
+        requires: ./gatewayscripts/Auth/privacy-preserving.js		
+    - gatewayscript:
+        version: 2.0.0
+        title: gws-inject-lob-headers
+        requires: ./gatewayscripts/Context/injectlobheaders.js

@@ -1,0 +1,411 @@
+info:
+  title: DiagnosticReports
+  x-ibm-name: diagnosticreports
+  version: 1.1.0.7
+  description: |-
+    June 6, 2020, changed the invoke to reference IBM variable instead of framework as best practice
+    June 3, 2020, changed the target-url reference variable name, to make it unique from v5.
+    Feb 19 2020 , Framework version 2.0.0.1
+    Dec 11 , sanitized response headers
+    Nov 13, fixed issue with transfer of query parmeters (patch)
+    Oct 31, Converted to gateway mode - client ID / Secret header updated.
+    Aug 14-Updated targetURL 
+    Aug14-Updated2.0Backend 
+    Olis consumer query Jan 16 2019 - basepath update
+    Olis consumer query Jan 15 2019 - backend error fix
+    Olis consumer query Jan 14 2019
+    Olis consumer query Jan 11 2019 (2)
+    Olis consumer query Jan 10 2019
+    Olis consumer query Dec 22 2018
+schemes:
+  - https
+produces:
+  - application/json
+  - application/xml
+consumes:
+  - application/json
+  - application/xml
+security:
+ - ClientSecret: []
+   clientIdHeader: []
+securityDefinitions:
+  ClientSecret:
+    type: apiKey
+    in: header
+    x-key-type: client_secret
+    name: X-Gtwy-Client-Secret
+  clientIdHeader:
+    type: apiKey
+    in: header
+    x-key-type: client_id
+    name: X-Gtwy-Client-Id
+x-ibm-configuration:
+  cors:
+    enabled: true
+  gateway: datapower-api-gateway
+  type: rest
+  activity-log:
+    success-content: header
+    error-content: header
+    enabled: true
+  phase: realized
+  testable: true
+  properties:
+    target-url:
+      value: $(lob-olis-consumer-backend-v30)
+      description: >-
+        The URL of the target service
+        http://10.69.8.39/consumerGW/API/FHIR/DiagnosticReport/v1
+
+         http://cfhirapp.olis.vte.ont.srv/consumer20/
+      encoded: false
+    log-category:
+      value: GTWY-APP
+      description: >-
+        The logger to use for all API events. Not in the hook because it's
+        possible the hook doesn't execute for example on Auth Errors.
+    maxTokenLifeSec:
+      value: '31556952'
+      description: Maximum lifetime for JWT token exp - iat
+    compatibilitymode:
+      value: 'on'
+    xintermediary:
+      value: $(consumer-gateway-fqdn)
+      description: The Fqdn of the gateway, this is used to populate the x-intermediary field
+    test:
+      value: test
+    framework:
+      value: consumer2.1.0.0
+  cors:
+    enabled: true
+  application-authentication:
+    certificate: false
+  assembly:
+    execute:
+      - gatewayscript:
+          version: 2.0.0
+          title: gws-evaluate-jwt-auth-response
+          description: Evaluates the output from the jwt validation
+          source: ""
+      - invoke:
+          version: 2.0.0
+          title: invoke-backend
+          header-control:
+           type: blacklist
+           values: []
+          parameter-control:
+            type: whitelist
+            values: []
+          timeout: 60
+          verb: keep
+          cache-response: no-cache
+          cache-ttl: 900
+          stop-on-error:
+            - ConnectionError
+          target-url: $(api.properties.target-url)?$(request.querystring)
+          inject-proxy-headers: true
+      - gatewayscript:
+          version: 2.0.0
+          title: gws-detect-and-log-errors
+          source: ""
+      - gatewayscript:
+          version: 2.0.0
+          title: gws-setresponseheaders
+          source: ""
+    catch:
+      - errors:
+          - UnauthorizedError
+        execute:
+          - gatewayscript:
+              version: 2.0.0
+              title: gws-client-auth-error
+              source: ""
+          - throw:
+              version: 2.0.0
+              title: Throw Default
+              name: DefaultError
+              message: 'ErrorMessage'
+      - errors:
+          - ConnectionError
+        execute:
+          - set-variable:
+              version: 2.0.0
+              title: set-label-value
+              actions:
+                - set: target-url-label-value
+                  value: $(api.properties.target-url)
+                  type: string
+          - gatewayscript:
+              version: 2.0.0
+              title: gws-connection-error
+              source: ""
+          - gatewayscript:
+              version: 2.0.0
+              title: gws-log-map-errorcode
+              source: ""
+          - gatewayscript:
+              version: 2.0.0
+              title: gws-set-response-headers
+              source: ""
+      - default:
+        - gatewayscript:
+            version: 2.0.0
+            title: gws-set-response-headers
+            source: ""
+        - gatewayscript:
+            version: 2.0.0
+            title: gws-log-map-errorcode
+            source: ""
+
+definitions:
+  responseSuccessObject:
+    type: object
+    properties:
+      resourceType:
+        type: string
+        enum:
+          - Bundle
+      id:
+        type: string
+        format: uuid
+      type:
+        type: string
+        enum:
+          - searchset
+      total:
+        type: integer
+        format: int32
+      link:
+        type: array
+        items:
+          type: object
+          properties:
+            relation:
+              type: string
+              enum:
+                - ''
+                - self
+                - Next
+            url:
+              type: string
+      entry:
+        type: array
+        items:
+          type: object
+          properties:
+            fullUrl:
+              type: string
+            resource:
+              type: object
+              properties:
+                resourceType:
+                  type: string
+                  enum:
+                    - DiagnosticReport
+                id:
+                  type: string
+                contained:
+                  type: array
+                  items:
+                    type: object
+                extension:
+                  type: array
+                  items:
+                    type: object
+                identifier:
+                  type: array
+                  items:
+                    type: object
+                status:
+                  type: string
+                code:
+                  type: object
+                subject:
+                  type: object
+                issued:
+                  type: string
+                  format: date-time
+                performer:
+                  type: array
+                  items:
+                    type: object
+                specimen:
+                  type: array
+                  items:
+                    type: object
+                result:
+                  type: array
+                  items:
+                    type: object
+              required:
+                - resourceType
+                - id
+    required:
+      - resourceType
+      - id
+      - type
+      - total
+      - link
+  responseErrorObject400:
+    type: object
+    properties:
+      resourceType:
+        type: string
+        enum:
+          - Bundle
+      id:
+        type: string
+        format: uuid
+      type:
+        type: string
+        enum:
+          - searchset
+      entry:
+        type: array
+        items:
+          type: object
+          properties:
+            fullUrl:
+              type: string
+            resource:
+              type: object
+              properties:
+                resourceType:
+                  type: string
+                  enum:
+                    - OperationOutcome
+                id:
+                  type: string
+                  format: uuid
+                issue:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      severity:
+                        type: string
+                        enum:
+                          - error
+                          - fatal
+                          - warning
+                          - information
+                      code:
+                        type: string
+                      details:
+                        type: object
+                        properties:
+                          text:
+                            type: string
+              required:
+                - resourceType
+                - id
+    required:
+      - resourceType
+      - id
+      - type
+      - entry
+  responseErrorObject405:
+    type: object
+    properties:
+      Message:
+        type: string
+    required:
+      - Message
+  responseErrorObject:
+    type: string
+    example: Error object wrapped in JSON or XML format.
+paths:
+  /DiagnosticReport:
+    get:
+      operationId: Get
+      summary: >-
+        Fetch the lab results based on Patient HCN, Gender and Date of Birth.
+        These are three mandatory parameters to provide in order to retrieve
+        data. Also, set the jwt-token request header prior to submitting any
+        queries to OLIS FHIR. Please refer to the OLIS FHIR Implementation Guide
+        for more information about jwt-token.
+      consumes:
+        - text/plain
+      produces:
+        - application/json
+        - application/xml
+        - xml
+      parameters:
+        - name: patient.identifier
+          in: query
+          required: true
+          type: string
+        - name: patient.gender
+          in: query
+          required: true
+          type: string
+        - name: patient.birthdate
+          in: query
+          required: true
+          type: string
+        - name: issued
+          in: query
+          required: false
+          type: string
+        - name: specimen.collected
+          in: query
+          required: false
+          type: string
+        - name: 'result.based-on:ProcedureRequest.code'
+          in: query
+          required: false
+          type: string
+        - name: result.interpretation
+          in: query
+          required: false
+          type: string
+        - name: result.status
+          in: query
+          required: false
+          type: string
+        - name: result.code
+          in: query
+          required: false
+          type: string
+        - name: identifier
+          in: query
+          required: false
+          type: string
+        - name: _count
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: Charset
+          in: header
+          required: false
+          type: string
+        - name: Accept
+          in: header
+          required: false
+          type: string
+        - name: Authorization
+          in: header
+          type: string
+      responses:
+        '200':
+          description: >-
+            Successfully processed and data returned or no data to return to the
+            caller.
+          schema:
+            $ref: '#/definitions/responseSuccessObject'
+        '400':
+          description: Bad request. Format of the parameters or the syntax is not correct.
+          schema:
+            $ref: '#/definitions/responseErrorObject400'
+        '405':
+          description: HTTP Method does not support.
+          schema:
+            $ref: '#/definitions/responseErrorObject405'
+        '500':
+          description: >-
+            Internal server error (Database level or .NET service level
+            exceptions).
+          schema:
+            $ref: '#/definitions/responseErrorObject'
+    parameters: []
